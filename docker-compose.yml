@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: rag-chatbot-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    environment:
+      - PYTHONPATH=/app
+      - DEBUG=True
+      - EMBEDDING_MODEL_PATH=/app/models/embedding
+      - LLM_MODEL_PATH=/app/models/llm
+      - DATA_DIR=/app/data
+      - DOCS_DIR=/app/data/docs
+      - FAISS_INDEX_DIR=/app/data/faiss_index
+      - METADATA_DIR=/app/data/metadata
+      - UPLOADS_DIR=/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  frontend:
+    build: ./frontend
+    container_name: rag-chatbot-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  models:
+    driver: local
+  data:
+    driver: local
+  uploads:
+    driver: local
+
+networks:
+  default:
+    name: rag-chatbot-network
